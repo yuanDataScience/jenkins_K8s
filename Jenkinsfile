@@ -50,9 +50,15 @@ spec:
 
         stage('Build & Push') {
             steps {
+
+                //extract the first 7 characters of the Git Commit Hash
+                // Fall back to 'latest' if GIT_COMMIT isn't populated for some reason
+                def shortSha = env.GIT_COMMIT ? env.GIT_COMMIT.take(7) : 'latest'
+
+                //push to docker hub using shortsha as tag
                 container('kaniko') {
                     // Back to a clean, one-line command
-                    sh "/kaniko/executor --context=dir=. --dockerfile=Dockerfile --destination=huangyuan2000/fastapi-demo:${env.BUILD_NUMBER} "
+                    sh "/kaniko/executor --context=dir=. --dockerfile=Dockerfile --destination=huangyuan2000/fastapi-demo:${shortSha}"
                 }
             }
         }
