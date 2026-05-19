@@ -11,7 +11,7 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
-    - name: python-env
+  - name: python-env
     image: python:3.10
     command: ["cat"]
     tty: true
