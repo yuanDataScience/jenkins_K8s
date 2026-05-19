@@ -6,7 +6,7 @@ pipeline {
   kubernetes {
     namespace 'jenkins'
         defaultContainer 'python-env'
-    yaml """
+    yaml '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -31,7 +31,7 @@ spec:
       items:
       - key: .dockerconfigjson
         path: config.json
-"""
+'''
         }
     }
 
@@ -52,7 +52,7 @@ spec:
             steps {
                 container('kaniko') {
                     // Back to a clean, one-line command
-                    sh '/kaniko/executor --context=dir://${WORKSPACE} --dockerfile=Dockerfile --destination=huangyuan2000/fastapi-demo:${env.BUILD_NUMBER}'
+                    sh "/kaniko/executor --context=dir=. --dockerfile=Dockerfile --destination=huangyuan2000/fastapi-demo:${env.BUILD_NUMBER} "
                 }
             }
         }
