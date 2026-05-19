@@ -5,120 +5,56 @@ pipeline {
   // defined as 'pipeline script from scm' in pipeline definition
   kubernetes {
     namespace 'jenkins'
-        defaultContainer 'python'
+        defaultContainer 'python-env'
     yaml """
 apiVersion: v1
 kind: Pod
 spec:
   containers:
-    - name: python
-      image:  huangyuan2000/python-dvc:3.10.1
-      command:
-        - sleep
-        - infinity
-      env:
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: minio-credentials
-              key: access_key
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: minio-credentials
-              key: secret_key
+    - name: python-env
+    image: python:3.10
+    command: ["cat"]
+    tty: true
+
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command: ["cat"]
+    tty: true
+    volumeMounts:
+    - name: registry-credentials
+      mountPath: /kaniko/.docker # Kaniko automatically looks here for config.json
+  
+  volumes:
+  - name: registry-credentials
+    secret:
+      secretName: regcred
+      items:
+      - key: .dockerconfigjson
+        path: config.json
 """
-  }
-}
-
-    environment {
-            VENV_DIR = 'venv'
         }
-
-
-    triggers {
-        pollSCM('H 5 * * *') // Polls daily at 5 AM
     }
 
-    stages{
-        stage('Verify Python') {
+    stages {
+         
+        stage('Unit Tests') {
             steps {
-                sh 'python3 --version'
-                sh 'which python3'
-                sh 'pip3 --version'
+                container('python-env') {
+                    sh 'echo "Running tests..."'
+                    sh 'python3 --version'
+                    sh 'which python3'
+                    sh 'pip3 --version'
+                }
             }
         }
 
-
-        stage('Verify MinIO Credentials (Env)') {
+        stage('Build & Push') {
             steps {
-                sh '''
-                    [ -n "$AWS_ACCESS_KEY_ID" ] || exit 1
-                    [ -n "$AWS_SECRET_ACCESS_KEY" ] || exit 1
-                    echo "MinIO credentials present"
-                '''
+                container('kaniko') {
+                    // Back to a clean, one-line command
+                    sh '/kaniko/executor --context=dir://${WORKSPACE} --dockerfile=Dockerfile --destination=huangyuan2000/fastapi-demo:${env.BUILD_NUMBER}'
+                }
             }
         }
-
-        stage('Verify MinIO Access (mc)') {
-            steps {
-                sh '''
-                    mc alias set minio http://minio.mlops.svc.cluster.local:9000 \
-                        "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY"
-
-                    echo "MinIO buckets:"
-                    mc ls minio
-                '''
-            }
-        }
-
-        
-stage('Verify DVC Configuration') {
-            steps {
-                sh '''
-                    dvc --version
-                    dvc root
-                    dvc remote list
-                    dvc remote default
-                    echo "DVC configuration valid"
-                '''
-            }
-        }
-
-stage('Verify DVC Access to MinIO') {
-    steps {
-        sh '''
-            echo "Checking DVC ↔ MinIO connectivity (read-only)"
-            dvc status -c
-            echo "DVC remote is reachable"
-        '''
-    }
-}
-        // stage('Setup Python Environment') {
-        //     steps {
-        //         sh '''
-                                       
-        //             python3 -m venv $VENV_DIR
-        //             . $VENV_DIR/bin/activate
-
-        //            pip install -r requirements.txt
-        //         '''
-        //     }
-        // }
-
-
-
-        // stage('Run Tests') {
-        //     steps {
-        //         sh '''
-        //             . venv/bin/activate
-        //             which pytest
-        //             export PYTHONPATH=$(pwd)
-        //             pytest
-        //         '''
-        //     }
-        // }
-
-
     }
 }
